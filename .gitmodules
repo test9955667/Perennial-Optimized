@@ -1,0 +1,3 @@
+[submodule "lib/perennial-mono"]
+	path = lib/perennial-mono
+	url = https://github.com/test9955667/perennial-mono
