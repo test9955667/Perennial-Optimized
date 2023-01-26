@@ -1,0 +1,8 @@
+forge-std/=lib/forge-std/src/
+perennial-mono/=lib/perennial-mono/
+@multiinvoker/=lib/perennial-mono/packages/perennial/contracts/multiinvoker
+@perennial-interfaces/=lib/perennial-mono/packages/perennial/contracts/interfaces/
+@equilibria/root/=lib/root/contracts/
+@equilibria/perennial-oracle/=lib/perennial-mono/packages/perennial-oracle/
+@equilibria/emptyset-batcher/=lib/emptyset-batcher/contracts/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/

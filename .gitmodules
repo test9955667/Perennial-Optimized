@@ -1,3 +1,25 @@
 [submodule "lib/perennial-mono"]
 	path = lib/perennial-mono
 	url = https://github.com/test9955667/perennial-mono
+[submodule "lib/forge-std"]
+	path = lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+	branch = v1.3.0
+[submodule "lib/ds-test"]
+	path = lib/ds-test
+	url = https://github.com/dapphub/ds-test
+[submodule "lib/root"]
+	path = lib/root
+	url = https://github.com/equilibria-xyz/root
+	branch = v0.2.0
+[submodule "lib/openzeppelin-contracts"]
+	path = lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+	branch = v4.8.1
+[submodule "lib/emptyset"]
+	path = lib/emptyset
+	url = https://github.com/equilibria-xyz/emptyset
+[submodule "lib/emptyset-batcher"]
+	path = lib/emptyset-batcher
+	url = https://github.com/equilibria-xyz/emptyset-batcher
+	branch = v0.1.0
