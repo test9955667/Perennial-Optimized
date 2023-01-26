@@ -92,6 +92,9 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
     /// ptr += (prodcutLen OR 20) + 1
     /// [ptr(amountLen), ptr:amountLen] => uint256 amount 
 
+
+    // ARGUMENT TYPE DECODING //
+
     function decodeAddressProductAmount(bytes calldata input, uint ptr) private returns (address user, IProduct product, UFixed18 amount, uint) {
         (user, ptr) = decodeUser(input, ptr);
         (product, ptr) = decodeProduct(input, ptr);
@@ -106,6 +109,8 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
 
         return(product, amount, ptr);
     }
+
+    // INDIVIDUAL TYPE DECODING //
 
     function decodeAmount(bytes calldata input, uint ptr) private returns (UFixed18 result, uint) {
         
@@ -211,6 +216,8 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
         if(product == address(0x0)) revert("Bad calldata, product not found");
     }
 
+    // HELPER FUNCTIONS //
+    
     function bytesToAddress(bytes memory input) private pure returns (address addr) {
         assembly {
             addr := mload(add(input,20))
