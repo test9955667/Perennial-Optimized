@@ -1,11 +1,16 @@
 pragma solidity ^0.8.0;
 
-import "@multiinvoker/Multiinvoker.sol";
+import {MultiInvoker, UFixed18Lib} from "@multiinvoker/Multiinvoker.sol";
 import "./mocks/MockInvoker.sol";
 
-/// @notice JUST A SCRATCHPAD, DO NOT READ
+import "forge-std/Test.sol";
+
 contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
     using UFixed18Lib for uint256;
+    
+    event LogBytes(bytes);
+    event LogBytes32(bytes32);
+    event LogUint(uint);
 
     event UserAddedToCache(address indexed user, uint256 nonce);
     event ProductAddedToCache(address indexed product, uint256 nonce);
@@ -33,8 +38,9 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
         uint len = input.length;
 
         for(ptr; ptr < len;) {
-            uint action = bytesToUint(input[ptr:ptr+1]);
-            
+            uint8 action = toUint8(input[ptr:ptr+1]);
+            ptr += 1;
+
             // solidity doesn't like evaluating bytes as enums :/ 
             // PerennialAction.Deposit 
             if(action == 0) { // DEPOSIT
@@ -68,12 +74,24 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
                 IProduct product; UFixed18 amount;
                 (product, amount, ptr) = decodeProductAmount(input, ptr);
 
+                // product.closeMakeFor(msg.sender, amount)
             } else if (action == 6) { // CLAIM 
+                IProduct product; uint256[] memory programIds;
+                (product, programIds, ptr) = decodeProductPrograms(input, ptr);
 
+                // controller.incentivizer().claimFor(msg.sender, product, programIds);
             } else if (action == 7) { // WRAP 
+                address receiver; UFixed18 amount;
+                (receiver, amount, ptr) = decodeAddressAmount(input, ptr);
 
+                // wrap(receiver, amount);
             } else if (action == 8) { // UNWRAP
+                address receiver; UFixed18 amount;
+                (receiver, amount, ptr) = decodeAddressAmount(input, ptr);
 
+                // unwrap(receiver, amount);
+
+            // @todo lets just wrap these in multiple actions now?
             } else if (action == 9) { // WRAP_AND_DEPOSIT
 
             } else if (action == 10) { // WITHDRAW_AND_UNWRAP
@@ -98,46 +116,64 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
     function decodeAddressProductAmount(bytes calldata input, uint ptr) private returns (address user, IProduct product, UFixed18 amount, uint) {
         (user, ptr) = decodeUser(input, ptr);
         (product, ptr) = decodeProduct(input, ptr);
-        (amount, ptr) = decodeAmount(input, ptr);
+        (amount, ptr) = decodeAmountUFixed18(input, ptr);
 
         return (user, product, amount, ptr);
     }
 
+    function decodeProductPrograms(bytes calldata input, uint ptr) private returns(IProduct product, uint256[] memory programs, uint) {
+        (product, ptr) = decodeProduct(input, ptr);
+        (programs, ptr) = decodeUintArray(input, ptr);
+
+        return(product, programs, ptr);
+    }
+
     function decodeProductAmount(bytes calldata input, uint ptr) private returns (IProduct product, UFixed18 amount, uint) {
         (product, ptr) = decodeProduct(input, ptr);
-        (amount, ptr) = decodeAmount(input, ptr);
+        (amount, ptr) = decodeAmountUFixed18(input, ptr);
 
-        return(product, amount, ptr);
+        return(product, UFixed18(amount), ptr);
+    }
+
+    function decodeAddressAmount(bytes calldata input, uint ptr) private returns(address account, UFixed18 amount, uint) {
+        (account, ptr) = decodeUser(input, ptr);
+        (amount, ptr) = decodeAmountUFixed18(input, ptr);
     }
 
     // INDIVIDUAL TYPE DECODING //
 
-    function decodeAmount(bytes calldata input, uint ptr) private returns (UFixed18 result, uint) {
+    function decodeAmountUFixed18(bytes calldata input, uint ptr) private returns (UFixed18 result, uint) {
+        uint8 len = toUint8(input[ptr:ptr+1]);
+        ptr += 1; 
         
-        uint len = bytesToUint(input[ptr:1]);
-
-        bytes memory encodedUint = input[ptr+1:len];
-
-        result = UFixed18Lib.from(bytesToUint(encodedUint));
-
-        ptr += len + 1;
+        result = UFixed18Lib.from(bytesToUint(input[ptr:ptr+len]));
+        ptr += len;
 
         return (result, ptr);
     }
 
-    /// ADDRESS CACHE FUNCTIONS 
+    function decodeUint(bytes calldata input, uint ptr) private returns (uint result, uint) {
+        uint8 len = toUint8(input[ptr:ptr+1]);
+        ++ptr;
 
-    function decodeUintArray(bytes calldata input, uint ptr) private returns (UFixed18[] memory, uint) {
-        // first byte is number of elements in uint array
-        uint arrayLen = bytesToUint(input[ptr:ptr+1]);
+        result = bytesToUint(input[ptr:ptr+len]);
+        ptr += len;
+
+        return (result, ptr);
+    }
+
+ 
+
+    function decodeUFixed18Array(bytes calldata input, uint ptr) private returns (UFixed18[] memory, uint) {
+        uint8 arrayLen = toUint8(input[ptr:ptr+1]);
+        ++ptr;
+
         UFixed18[] memory result = new UFixed18[](arrayLen);
         uint count = 0;
-
         for(;count < arrayLen;) {
-            ++ptr;
             UFixed18 currUint;
 
-            (currUint, ptr) = decodeAmount(input, ptr);
+            (currUint, ptr) = decodeAmountUFixed18(input, ptr);
             
             result[count] = currUint;
 
@@ -148,54 +184,74 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
     }
 
 
+    function decodeUintArray(bytes calldata input, uint ptr) private returns (uint256[] memory, uint) {
+        uint8 arrayLen = toUint8(input[ptr:ptr+1]);
+        ++ptr;
+
+        uint256[] memory result = new uint256[](arrayLen);
+
+        uint count = 0;
+        for(;count < arrayLen;) {
+            uint currUint;
+
+            (currUint, ptr) = decodeUint(input, ptr);
+
+            result[count] = currUint;
+
+            ++count;
+        }
+        return (result, ptr);
+    }
+
+
 
     function decodeUser(bytes calldata input, uint ptr) private returns(address userAddress, uint) {
-        uint userLen = bytesToUint(input[ptr:ptr+1]);
+        uint8 userLen = toUint8(input[ptr:ptr+1]);
         ptr += 1;
 
         // user is new to registry, add next 20 bytes as address to registry and return address
         if(userLen == 0) {
-            userAddress = bytesToAddress(input[ptr:ptr+19]);
-            ptr += 19;
+            userAddress = bytesToAddress(input[ptr:ptr+20]);
+            ptr += 20;
 
             setUserCache(userAddress);
 
         } else {
-            uint256 userNonceLookup = bytesToUint(input[ptr:ptr+userLen]);
+            uint userNonceLookup = bytesToUint(input[ptr:ptr+userLen]);
             ptr += userLen;
-            getUserCacheSafe(userNonceLookup);
 
+            userAddress = getUserCacheSafe(userNonceLookup);
         }
 
         return (userAddress, ptr);
     }
 
     function decodeProduct(bytes calldata input, uint ptr) private returns(IProduct product, uint) {
-        uint productLen = bytesToUint(input[ptr:ptr+1]);
+        uint8 productLen = toUint8(input[ptr:ptr+1]);
         ptr += 1;
 
         // user is new to registry, add next 20 bytes as address to registry and return address
         if(productLen == 0) {
-            product = IProduct(bytesToAddress(input[ptr:ptr+19]));
-            ptr += 19;
+            product = IProduct(bytesToAddress(input[ptr:ptr+20]));
+            ptr += 20;
 
-            setUserCache(address(product));
+            setProductCache(address(product));
             
         } else {
-            uint256 productNonceLookup = bytesToUint(input[ptr:ptr+productLen]);
+            uint productNonceLookup = bytesToUint(input[ptr:ptr+productLen]);
             ptr += productLen;
-            getProductCacheSafe(productNonceLookup);
 
+            product = IProduct(getProductCacheSafe(productNonceLookup));
         }
 
         return (product, ptr);
     }
 
     function setUserCache(address user) private {
+        ++userNonce;
         userCache[userNonce] = user;
         userNonces[user] = userNonce;
         emit UserAddedToCache(user, userNonce);
-        ++userNonce;
     }
 
     function getUserCacheSafe(uint nonce) public returns (address user){
@@ -204,11 +260,11 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
     }
 
     function setProductCache(address product) private {
+        ++productNonce;
         productCache[productNonce] = product;
         productNonces[product] = productNonce;
-
         emit ProductAddedToCache(product, productNonce);
-        ++productNonce;
+       
     }
 
     function getProductCacheSafe(uint nonce) public view returns(address product) {
@@ -216,15 +272,51 @@ contract MultiInvokerRollup is MockMultiInvoker /**MultiInvoker*/ {
         if(product == address(0x0)) revert("Bad calldata, product not found");
     }
 
+
     // HELPER FUNCTIONS //
     
+    // Unchecked force of 20 bytes into address
+    // This is called in decodeUser and decodeProduct which both only pass 20 byte slices 
     function bytesToAddress(bytes memory input) private pure returns (address addr) {
         assembly {
-            addr := mload(add(input,20))
+            addr := mload(add(input, 20))
         } 
     }
 
-    function bytesToUint(bytes memory input) private pure returns (uint res) {
-        res = uint(bytes32(input));
+    // Unchecked implementation of GNSPS' standard BytesLib.sol
+    function toUint8(bytes memory _bytes) internal pure returns (uint8 res) {
+        assembly {
+            res := mload(add(_bytes, 0x1))
+        }
     }
+
+    function toUint8(bytes memory _bytes, uint256 _start) internal pure returns (uint8 res) {
+        require(_bytes.length >= _start + 1 , "toUint8_outOfBounds");
+        uint8 tempUint;
+
+        assembly {
+            tempUint := mload(add(add(_bytes, 0x1), _start))
+        }
+
+        return tempUint;
+    }
+
+
+
+    // loads arbitrarily-sized byte array into a uint unchecked
+    function bytesToUint(bytes memory _b) private returns(uint256 res) {
+        uint len = _b.length;
+
+        assembly {
+            res := mload(add(_b, 0x20))
+        }
+
+        if(res == 0x20) {
+            return 0;
+        }
+
+        // readable right shift to change right padding of mload to left padding
+        res >>= 256 - (len * 8);
+    }
+
 }

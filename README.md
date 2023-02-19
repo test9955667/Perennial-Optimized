@@ -37,9 +37,9 @@ contract MultiInvokerRollup is MultiInvoker {
         - if a user is cached on chain in this contract, then the calldata will contain a packed uint key for the value (address) stored, otherwise the address can be passed as well to include a new user in the cache
     #### 3.2) product addr caching
         - same as above but for product addresses
-    #### 3.3) uint256
+    #### 3.3) uint256 (UFixed18)
         - encode/decode a uint packed to the smallest # of bytes it can fit, not a 32 bytes uint256
-    #### 3.4) uint256[]
+    #### 3.4) uint256[] (UFixed18[])
         - same as above with a more tightly packed encoding/decoding of array elements than evm standard
 
 
